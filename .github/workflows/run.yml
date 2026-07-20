@@ -7,6 +7,17 @@ on:
   schedule:
     - cron: "30 1 * * *"
   workflow_dispatch:
+    inputs:
+      start_date:
+        description: '开始日期 (YYYY-MM-DD), 留空=仅今日'
+        required: false
+        type: string
+        default: ''
+      end_date:
+        description: '结束日期 (YYYY-MM-DD), 留空=至今'
+        required: false
+        type: string
+        default: ''
 
 
 jobs:
@@ -26,17 +37,33 @@ jobs:
       run: |
         source .venv/bin/activate
         today=$(date -u "+%Y-%m-%d")
-        echo "开始爬取 $today 的arXiv论文... / Starting to crawl $today arXiv papers..."
-        
-        # 检查今日文件是否已存在，如存在则删除 / Check if today's file exists, delete if found
-        if [ -f "data/${today}.jsonl" ]; then
-            echo "🗑️ 发现今日文件已存在，正在删除重新生成... / Found existing today's file, deleting for fresh start..."
-            rm "data/${today}.jsonl"
-            echo "✅ 已删除现有文件：data/${today}.jsonl / Deleted existing file: data/${today}.jsonl"
+
+        # 确定爬取模式和文件名
+        START_DATE="${{ inputs.start_date }}"
+        END_DATE="${{ inputs.end_date }}"
+
+        if [ -n "$START_DATE" ]; then
+          MODE="historical"
+          if [ -n "$END_DATE" ]; then
+            OUTPUT_FILE="data/${START_DATE}_${END_DATE}.jsonl"
+          else
+            OUTPUT_FILE="data/${START_DATE}_${today}.jsonl"
+          fi
+          echo "📅 历史模式: $START_DATE ~ ${END_DATE:-$today} / Historical mode: $START_DATE ~ ${END_DATE:-$today}"
         else
-            echo "📝 今日文件不存在，准备新建... / Today's file doesn't exist, ready to create new one..."
+          MODE="daily"
+          OUTPUT_FILE="data/${today}.jsonl"
+          echo "📅 日报模式: $today / Daily mode: $today"
         fi
-        
+
+        echo "输出文件: $OUTPUT_FILE / Output file: $OUTPUT_FILE"
+
+        # 删除已存在的输出文件 / Delete existing output file if found
+        if [ -f "$OUTPUT_FILE" ]; then
+            echo "🗑️ 输出文件已存在，正在删除重新生成... / Output file exists, deleting for fresh start..."
+            rm "$OUTPUT_FILE"
+        fi
+
         cd daily_arxiv
         export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         export OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
@@ -44,18 +71,19 @@ jobs:
         export LANGUAGE="${{ vars.LANGUAGE }}"
         export CATEGORIES="${{ vars.CATEGORIES }}"
         export MODEL_NAME="${{ vars.MODEL_NAME }}"
-        
-        # 使用Scrapy爬取
-        # Use Scrapy to crawl
-        scrapy crawl arxiv -o ../data/${today}.jsonl
-        
-        # 检查爬取是否成功 / Check if crawling was successful
-        if [ ! -f "../data/${today}.jsonl" ]; then
+        export START_DATE="$START_DATE"
+        export END_DATE="$END_DATE"
+
+        scrapy crawl arxiv -o "../$OUTPUT_FILE"
+
+        if [ ! -f "../$OUTPUT_FILE" ]; then
             echo "爬取失败，未生成数据文件 / Crawling failed, no data file generated"
             exit 1
         fi
-        
+
+        echo "output_file=$OUTPUT_FILE" >> $GITHUB_OUTPUT
         echo "crawl_date=$today" >> $GITHUB_OUTPUT
+        echo "crawl_mode=$MODE" >> $GITHUB_OUTPUT
         echo "爬取完成 / Crawling completed"
         
     - name: Check for duplicates
@@ -63,19 +91,17 @@ jobs:
       run: |
         source .venv/bin/activate
         echo "执行去重检查... / Performing intelligent deduplication check..."
-        
+
         cd daily_arxiv
-        # 执行去重检查脚本 / Execute intelligent deduplication check script
-        set +e  # 暂时允许命令失败 / Temporarily allow command failure
-        python daily_arxiv/check_stats.py
-        
-        # 获取退出码 / Get exit code
+        set +e
+        python daily_arxiv/check_stats.py --file "../${{ steps.crawl_step.outputs.output_file }}"
+
         dedup_exit_code=$?
-        set -e  # 恢复严格模式 / Restore strict mode
-        
+        set -e
+
         echo "去重检查退出码: $dedup_exit_code / Dedup check exit code: $dedup_exit_code"
         echo "dedup_exit_code=$dedup_exit_code" >> $GITHUB_OUTPUT
-        
+
         case $dedup_exit_code in
             0)
                 echo "has_new_content=true" >> $GITHUB_OUTPUT
@@ -101,49 +127,47 @@ jobs:
       if: steps.dedup_check.outputs.has_new_content == 'true'
       run: |
         source .venv/bin/activate
-        today=${{ steps.crawl_step.outputs.crawl_date }}
-        echo "开始AI增强处理... / Starting AI enhancement processing..."
-        
+        INPUT_FILE="${{ steps.crawl_step.outputs.output_file }}"
+        echo "开始AI增强处理: $INPUT_FILE ... / Starting AI enhancement processing..."
+
         cd ai
         export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
         export OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
         export LANGUAGE="${{ vars.LANGUAGE }}"
         export MODEL_NAME="${{ vars.MODEL_NAME }}"
-        
-        python enhance.py --data ../data/${today}.jsonl
-        
-        # 检查AI处理是否成功 / Check if AI processing was successful
+
+        python enhance.py --data "../$INPUT_FILE"
+
         if [ $? -ne 0 ]; then
             echo "AI处理失败 / AI processing failed"
             exit 1
         fi
         echo "AI增强处理完成 / AI enhancement processing completed"
-        
+
     - name: Convert to Markdown
       if: steps.dedup_check.outputs.has_new_content == 'true'
       run: |
         source .venv/bin/activate
-        today=${{ steps.crawl_step.outputs.crawl_date }}
+        INPUT_FILE="${{ steps.crawl_step.outputs.output_file }}"
         echo "转换为Markdown格式... / Converting to Markdown format..."
-        
-        # 设置环境变量 / Set environment variables
+
         export LANGUAGE="${{ vars.LANGUAGE }}"
-        
+
         cd to_md
-        
-        # 使用AI增强文件进行转换 / Use AI enhanced file for conversion
-        AI_FILE="../data/${today}_AI_enhanced_${LANGUAGE}.jsonl"
-        
+
+        # Build AI enhanced filename from input file
+        BASE_NAME=$(basename "$INPUT_FILE" .jsonl)
+        AI_FILE="../data/${BASE_NAME}_AI_enhanced_${LANGUAGE}.jsonl"
+
         if [ -f "$AI_FILE" ]; then
-            echo "使用AI增强文件进行转换... / Using AI enhanced file for conversion..."
+            echo "使用AI增强文件进行转换: $AI_FILE / Using AI enhanced file for conversion"
             python convert.py --data "$AI_FILE"
         else
             echo "错误：未找到AI增强文件 / Error: AI enhanced file not found"
             echo "AI文件: $AI_FILE"
             exit 1
         fi
-        
-        # 检查转换是否成功 / Check if conversion was successful
+
         if [ $? -ne 0 ]; then
             echo "Markdown转换失败 / Markdown conversion failed"
             exit 1
@@ -283,16 +307,14 @@ jobs:
       if: steps.dedup_check.outputs.has_new_content == 'true'
       run: |
         echo "准备数据文件... / Preparing data files..."
-        today=${{ steps.crawl_step.outputs.crawl_date }}
-        
-        # 创建临时目录保存数据文件 / Create temporary directory to save data files
+        INPUT_FILE="${{ steps.crawl_step.outputs.output_file }}"
+
         mkdir -p /tmp/data_files/data
         mkdir -p /tmp/data_files/assets
-        
-        # 复制数据文件到临时目录 / Copy data files to temporary directory
+
         cp -r data/* /tmp/data_files/data/ 2>/dev/null || true
         cp assets/file-list.txt /tmp/data_files/assets/ 2>/dev/null || true
-        
+
         echo "数据文件已保存到临时目录 / Data files saved to temporary directory"
 
     - name: Setup and commit to data branch
@@ -300,9 +322,11 @@ jobs:
       run: |
         git config --global user.email "${{ vars.EMAIL }}"
         git config --global user.name "${{ vars.NAME }}"
-        
+
         echo "设置 data 分支... / Setting up data branch..."
         today=${{ steps.crawl_step.outputs.crawl_date }}
+        INPUT_FILE="${{ steps.crawl_step.outputs.output_file }}"
+        COMMIT_MSG=$(basename "$INPUT_FILE" .jsonl)
         
         # 在切换分支前，清理工作目录中可能冲突的未跟踪文件
         # Before switching branches, clean untracked files that might conflict
@@ -345,7 +369,7 @@ jobs:
         if git diff --staged --quiet; then
           echo "没有数据变更需要提交 / No data changes to commit"
         else
-          git commit -m "update: $today arXiv papers"
+          git commit -m "update: $COMMIT_MSG arXiv papers"
           echo "数据变更已提交到 data 分支 / Data changes committed to data branch"
         fi
 
