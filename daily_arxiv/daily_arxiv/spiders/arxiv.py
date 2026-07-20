@@ -10,7 +10,7 @@ def generate_month_list(start_date, end_date):
     y, m = start_date.year, start_date.month
     ey, em = end_date.year, end_date.month
     while (y, m) <= (ey, em):
-        months.append(f"{y % 100:02d}{m:02d}")
+        months.append(f"{y}-{m:02d}")
         m += 1
         if m > 12:
             m = 1
