@@ -1,7 +1,11 @@
 arxiv:
   categories:  # 文章类型
-    - cs.CV
-    - cs.CL
+    - cs.LG           # 机器学习(PINN/Neural Operator/DL方法)
+    - cs.CE           # 计算工程(数值模拟)
+    - physics.flu-dyn # 流体动力学(CFD/多相流)
+    - physics.comp-ph # 计算物理
+    - math.NA         # 数值分析(ODE/PDE求解器)
+    - stat.ML         # 统计机器学习
 
 llm:
   model_name: 'deepseek-chat'  # 使用的LLM模型
