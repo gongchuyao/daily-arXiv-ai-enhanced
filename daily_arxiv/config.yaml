@@ -1,11 +1,16 @@
 arxiv:
   categories:  # 文章类型
-    - cs.LG           # 机器学习(PINN/Neural Operator/DL方法)
-    - cs.CE           # 计算工程(数值模拟)
-    - physics.flu-dyn # 流体动力学(CFD/多相流)
-    - physics.comp-ph # 计算物理
-    - math.NA         # 数值分析(ODE/PDE求解器)
-    - stat.ML         # 统计机器学习
+    - cs.LG               # ML方法(PINN/Transformer/对比学习)
+    - stat.ML             # 统计机器学习(理论侧)
+    - math.NA             # 数值分析(ODE/PDE求解器)
+    - math.MP             # 数学物理(TSCBS/对称性/普适类)
+    - math.AP             # PDE分析(理论侧)
+    - math.AG             # 代数几何(多项式系统)
+    - math.OC             # 优化与控制(Bregman框架)
+    - physics.flu-dyn     # 流体动力学(CFD/多相流)
+    - physics.comp-ph     # 计算物理
+    - nlin.AO             # 自适应与自组织系统(涌现/普适类)
+    - cond-mat.stat-mech  # 统计力学(相变/普适类/TSCBS对话对象)
 
 llm:
   model_name: 'deepseek-chat'  # 使用的LLM模型
