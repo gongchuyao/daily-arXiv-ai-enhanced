@@ -29,14 +29,15 @@ const DATA_CONFIG = {
     /**
      * Cache version - bump to force CDN cache refresh
      */
-    dataVersion: '2',
+    dataVersion: '3',
 
     /**
      * Get the base URL for raw GitHub content from data branch
-     * @returns {string} Base URL for raw GitHub content
+     * Uses jsDelivr CDN for better global accessibility (including China)
+     * @returns {string} Base URL for data branch content
      */
     getDataBaseUrl: function() {
-        return `https://raw.githubusercontent.com/${this.repoOwner}/${this.repoName}/${this.dataBranch}`;
+        return `https://cdn.jsdelivr.net/gh/${this.repoOwner}/${this.repoName}@${this.dataBranch}`;
     },
 
     /**
@@ -45,7 +46,6 @@ const DATA_CONFIG = {
      * @returns {string} Full URL to the data file
      */
     getDataUrl: function(filePath) {
-        return `${this.getDataBaseUrl()}/${filePath}?v=${this.dataVersion}`;
+        return `${this.getDataBaseUrl()}/${filePath}`;
     }
 };
-
