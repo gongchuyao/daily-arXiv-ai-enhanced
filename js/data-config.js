@@ -27,6 +27,11 @@ const DATA_CONFIG = {
     dataBranch: 'data',
 
     /**
+     * Cache version - bump to force CDN cache refresh
+     */
+    dataVersion: '2',
+
+    /**
      * Get the base URL for raw GitHub content from data branch
      * @returns {string} Base URL for raw GitHub content
      */
@@ -40,7 +45,7 @@ const DATA_CONFIG = {
      * @returns {string} Full URL to the data file
      */
     getDataUrl: function(filePath) {
-        return `${this.getDataBaseUrl()}/${filePath}`;
+        return `${this.getDataBaseUrl()}/${filePath}?v=${this.dataVersion}`;
     }
 };
 
