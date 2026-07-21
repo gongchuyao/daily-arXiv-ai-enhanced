@@ -764,12 +764,11 @@ function initDatePicker() {
     defaultDate: availableDates[0],
     enable: [
       function(date) {
-        // 只启用有效日期
+        // 只启用有数据文件的日期
         const dateStr = date.getFullYear() + "-" +
                         String(date.getMonth() + 1).padStart(2, '0') + "-" +
                         String(date.getDate()).padStart(2, '0');
-        // 在 availableDates[0] 之后的日期全部返回 false，否则返回 true
-        return dateStr <= availableDates[0];
+        return enabledDatesMap[dateStr] === true;
       }
     ],
     onChange: function(selectedDates, dateStr) {
