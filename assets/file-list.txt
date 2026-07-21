@@ -1,4 +1,2 @@
-2024-09-30.jsonl
-2024-09-30_AI_enhanced_Chinese.jsonl
 2026-07-20.jsonl
 2026-07-20_AI_enhanced_Chinese.jsonl
