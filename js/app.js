@@ -699,24 +699,27 @@ async function fetchAvailableDates() {
   try {
     // 从 data 分支获取文件列表
     const fileListUrl = DATA_CONFIG.getDataUrl('assets/file-list.txt');
+    console.log('[DEBUG] Fetching file-list from:', fileListUrl);
     const response = await fetch(fileListUrl);
+    console.log('[DEBUG] file-list response status:', response.status);
     if (!response.ok) {
       console.error('Error fetching file list:', response.status);
       return [];
     }
     const text = await response.text();
+    console.log('[DEBUG] file-list content:', text);
     const files = text.trim().split('\n');
 
     const dateRegex = /(\d{4}-\d{2}-\d{2})_AI_enhanced_(English|Chinese)\.jsonl/;
     const dateLanguageMap = new Map(); // Store date -> available languages
     const dates = [];
-    
+
     files.forEach(file => {
       const match = file.match(dateRegex);
       if (match && match[1] && match[2]) {
         const date = match[1];
         const language = match[2];
-        
+
         if (!dateLanguageMap.has(date)) {
           dateLanguageMap.set(date, []);
           dates.push(date);
@@ -724,11 +727,14 @@ async function fetchAvailableDates() {
         dateLanguageMap.get(date).push(language);
       }
     });
-    
+
     // Store the language mapping globally for later use
     window.dateLanguageMap = dateLanguageMap;
     availableDates = [...new Set(dates)];
     availableDates.sort((a, b) => new Date(b) - new Date(a));
+
+    console.log('[DEBUG] Available dates:', availableDates);
+    console.log('[DEBUG] Date-language map:', JSON.stringify([...dateLanguageMap.entries()]));
 
     initDatePicker(); // Assuming this function uses availableDates
 
@@ -829,13 +835,19 @@ async function loadPapersByDate(date) {
     const selectedLanguage = selectLanguageForDate(date);
     // 从 data 分支获取数据文件
     const dataUrl = DATA_CONFIG.getDataUrl(`data/${date}_AI_enhanced_${selectedLanguage}.jsonl`);
+    console.log('[DEBUG] Loading papers for date:', date);
+    console.log('[DEBUG] Selected language:', selectedLanguage);
+    console.log('[DEBUG] Data URL:', dataUrl);
     const response = await fetch(dataUrl);
+    console.log('[DEBUG] Response status:', response.status);
     // 如果文件不存在（例如返回 404），在论文展示区域提示没有论文
     if (!response.ok) {
+      console.log('[DEBUG] Response not OK, status:', response.status);
       if (response.status === 404) {
         container.innerHTML = `
           <div class="loading-container">
-            <p>No papers found for this date.</p>
+            <p>No papers found for this date. (404)</p>
+            <p style="font-size:12px;color:#888">URL: ${dataUrl}</p>
           </div>
         `;
         paperData = {};
@@ -845,6 +857,8 @@ async function loadPapersByDate(date) {
       throw new Error(`HTTP ${response.status}`);
     }
     const text = await response.text();
+    console.log('[DEBUG] Response text length:', text.length);
+    console.log('[DEBUG] First 200 chars:', text.substring(0, 200));
     // 空文件也提示没有论文
     if (!text || text.trim() === '') {
       container.innerHTML = `
@@ -888,7 +902,9 @@ async function loadPapersByDate(date) {
     container.innerHTML = `
       <div class="loading-container">
         <p>Loading data fails. Please retry.</p>
-        <p>Error messages: ${error.message}</p>
+        <p style="font-size:12px;color:#888">Error: ${error.message}</p>
+        <p style="font-size:12px;color:#888">URL: ${DATA_CONFIG.getDataUrl('data/' + currentDate + '_AI_enhanced_Chinese.jsonl')}</p>
+        <p style="font-size:12px;color:#888">Open browser console (F12) for more details.</p>
       </div>
     `;
   }
