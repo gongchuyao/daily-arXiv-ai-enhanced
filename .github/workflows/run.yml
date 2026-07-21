@@ -44,7 +44,6 @@ jobs:
 
         if [ -n "$START_DATE" ]; then
           MODE="historical"
-          # 使用结束日期作为文件名，与前端日期格式兼容
           if [ -n "$END_DATE" ]; then
             OUTPUT_FILE="data/${END_DATE}.jsonl"
           else
